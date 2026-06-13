@@ -9,6 +9,8 @@ import { MailModule } from './mail/mail.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { TasksModule } from './tasks/tasks.module';
 import { QueuesModule } from './queues/queues.module';
+import { AuthModule } from './auth/auth.module';
+import { UserModule } from './user/user.module'
 
 @Module({
   imports: [
@@ -36,6 +38,8 @@ import { QueuesModule } from './queues/queues.module';
     ScheduleModule.forRoot(),
     TasksModule,
     QueuesModule,
+    AuthModule,
+    UserModule,
   ],
   controllers: [AppController],
   providers: [AppService],
