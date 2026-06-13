@@ -8,9 +8,10 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
-import { RequestOtpDto } from './dto/request-otp.dto';
+import { LoginDto, RequestOtpDto } from './dto/request-otp.dto';
 import { VerifyOtpDto, VerifyOtpResponseDto } from './dto/verify-otp.dto';
 import { EmailQueue } from '../queues/email.queue';
+import { ApiResponse } from '../common/response/api-response';
 
 @Injectable()
 export class AuthService {
@@ -31,6 +32,27 @@ export class AuthService {
       secret: this.config.get<string>('JWT_SECRET'),
       expiresIn: '7d',
     });
+  }
+
+  async loginUser(dto: LoginDto) {
+    const isEmail = dto.email.includes('@');
+
+    const user = await this.prisma.user.findUnique({
+      where: isEmail
+        ? { email: dto.email }
+        : { userName: dto.email },
+    });
+
+    const dummyHash = '$2b$10$invalidhashfortimingprotection000000000000000000000';
+    const isMatch = await bcrypt.compare(dto.password, user?.password ?? dummyHash);
+
+    if (!user || !isMatch) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    const message = await this.requestOtp({ email: user.email });
+
+    return ApiResponse.success(message)
   }
   
   async requestOtp(dto: RequestOtpDto, isReturningUser = false): Promise<{ message: string }> {

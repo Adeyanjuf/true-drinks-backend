@@ -1,5 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
+import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { GlobalExceptionFilter } from './common/filters/http-exception.filter';
 
@@ -18,6 +19,16 @@ async function bootstrap() {
     credentials: true,
     allowedHeaders: ['Content-Type', 'Authorization'],
   });
+
+  const config = new DocumentBuilder()
+    .setTitle('Drink Store API')
+    .setDescription('Backend API for managing drinks inventory, orders, and user accounts for an online drink purchase platform.')
+    .setVersion('1.0')
+    .addBearerAuth()
+    .build();
+  
+  const document = SwaggerModule.createDocument(app, config);
+  SwaggerModule.setup('api/documentation', app, document);
   
   const port = process.env.PORT || 4000;
   await app.listen(port, '0.0.0.0');

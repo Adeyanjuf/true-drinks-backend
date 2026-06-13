@@ -1,4 +1,5 @@
 import { ConflictException, Injectable } from '@nestjs/common';
+import * as bcrypt from 'bcrypt';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { PrismaService } from '../prisma/prisma.service';
@@ -12,17 +13,26 @@ export class UserService {
     private readonly authService: AuthService,
   ) {}
   async create(createUserDto: CreateUserDto) {
-    const existing = await this.prisma.user.findUnique({
-      where: { email: createUserDto.email },
+    const existing = await this.prisma.user.findFirst({
+      where: {
+        OR: [
+          { email: createUserDto.email },
+          { userName: createUserDto.userName },
+        ],
+      },
     });
-  
+
     if (existing) {
       throw new ConflictException(
-        'An account with this email already exists'
+        existing.email === createUserDto.email
+          ? 'Email already taken'
+          : 'Username already taken'
       );
     }
+
+    const password_hashed = await bcrypt.hash(createUserDto.password, 10);
   
-    const user = await this.prisma.user.create({ data: createUserDto });
+    const user = await this.prisma.user.create({ data: { ...createUserDto, password: password_hashed} });
     await this.authService.requestOtp({ email: user.email });
   
     return ApiResponse.success(

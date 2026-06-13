@@ -6,7 +6,7 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
-import { RequestOtpDto } from './dto/request-otp.dto';
+import { LoginDto, RequestOtpDto } from './dto/request-otp.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
 
 @Controller('auth')
@@ -17,6 +17,12 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   async requestOtp(@Body() dto: RequestOtpDto) {
     return this.authService.requestOtp(dto);
+  }
+
+  @Post('login')
+  @HttpCode(HttpStatus.OK)
+  async login(@Body() dto: LoginDto) {
+    return this.authService.loginUser(dto);
   }
 
   @Post('request-otp/returning')
