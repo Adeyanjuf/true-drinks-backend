@@ -7,6 +7,7 @@ import { JwtStrategy } from './strategies/jwt.strategy';
 import { JwtGuard } from './guards/jwt.guard';
 import { PrismaModule } from '../prisma/prisma.module';
 import { QueuesModule } from '../queues/queues.module';
+import { UserService } from '../user/user.service';
 
 @Module({
   imports: [
@@ -15,7 +16,7 @@ import { QueuesModule } from '../queues/queues.module';
     JwtModule.register({}),
     QueuesModule,
   ],
-  providers: [AuthService, JwtStrategy, JwtGuard],
+  providers: [AuthService, JwtStrategy, JwtGuard, UserService],
   controllers: [AuthController],
   exports: [AuthService, JwtGuard, JwtStrategy],
 })

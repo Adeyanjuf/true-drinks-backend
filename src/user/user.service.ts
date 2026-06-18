@@ -13,8 +13,10 @@ export class UserService {
     private readonly authService: AuthService,
   ) {}
   async create(createUserDto: CreateUserDto) {
-    const existing = await this.prisma.user.findUnique({
-      where: { email: createUserDto.email },
+    const existing = await this.prisma.user.findFirst({
+      where: {
+        OR: [{ email: createUserDto.email }, { userName: createUserDto.userName }],
+      },
     });
 
     if (existing) {

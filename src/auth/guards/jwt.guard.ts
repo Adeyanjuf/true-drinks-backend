@@ -14,7 +14,7 @@ export class JwtGuard extends AuthGuard('jwt') {
 
   // handleRequest is called after canActivate
   // err — passport error
-  // user — what validate() returned (our mentee)
+  // user — what validate() returned (our user)
   // if no user or error, we reject with 401
   handleRequest(err: any, user: any) {
     if (err || !user) {

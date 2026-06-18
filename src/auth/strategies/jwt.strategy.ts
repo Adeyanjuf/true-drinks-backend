@@ -18,24 +18,29 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: { sub: string; email: string }) {
-    const mentee = await this.prisma.user.findUnique({
+    const user = await this.prisma.user.findUnique({
       where: { id: payload.sub },
       select: {
         id: true,
         email: true,
         name: true,
         isVerified: true,
+        jwt_token: true
       },
     });
 
-    if (!mentee) {
+    if (!user) {
       throw new UnauthorizedException('Account no longer exists');
     }
 
-    if (!mentee.isVerified) {
+    if (!user.isVerified) {
       throw new UnauthorizedException('Account not verified');
     }
 
-    return mentee;
+    if (!user.jwt_token) {
+      throw new UnauthorizedException('Session expired. Please log in again.');
+    }
+
+    return user;
   }
 }

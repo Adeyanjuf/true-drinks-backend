@@ -9,10 +9,9 @@ export class RequestOtpDto {
 }
 
 export class LoginDto {
-  @ApiProperty({ example: 'JohnDoe@example.com' })
-  @IsEmail({}, { message: 'Please provide a valid email address' })
+  @ApiProperty({ example: 'JohnDoe@example.com or johnDoe1234' })
   @IsNotEmpty()
-  email!: string;
+  identifier!: string;
   
   @IsString()
   @IsNotEmpty()

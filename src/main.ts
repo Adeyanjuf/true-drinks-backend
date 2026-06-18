@@ -24,7 +24,14 @@ async function bootstrap() {
     .setTitle('Drink Store API')
     .setDescription('Backend API for managing drinks inventory, orders, and user accounts for an online drink purchase platform.')
     .setVersion('1.0')
-    .addBearerAuth()
+    .addBearerAuth({
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT',
+        name: 'Authorization',
+        in: 'header',
+      },
+      'access-token',)
     .build();
   
   const document = SwaggerModule.createDocument(app, config);
