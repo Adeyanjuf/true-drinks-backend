@@ -161,7 +161,7 @@ export class AuthService {
 
   async checkUsernameAvailability(username: string) {
     const existing = await this.prisma.user.findUnique({
-      where: { userName: username },
+      where: { username: username },
     });
 
     return {
@@ -202,7 +202,7 @@ export class AuthService {
 
     // check username availability
     const existingUsername = await this.prisma.user.findUnique({
-      where: { userName: dto.username },
+      where: { username: dto.username },
     });
 
     if (existingUsername) {
@@ -216,7 +216,7 @@ export class AuthService {
       data: {
         email: dto.email,
         name: dto.name,
-        userName: dto.username,
+        username: dto.username,
         password: password_hashed,
         isVerified: true,
       },
