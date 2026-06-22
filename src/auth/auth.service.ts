@@ -7,11 +7,13 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
+import validatorIsEmail from 'validator/lib/isEmail';
 import { PrismaService } from '../prisma/prisma.service';
 import { LoginDto, RequestOtpDto } from './dto/request-otp.dto';
 import { VerifyOtpDto, VerifyOtpResponseDto } from './dto/verify-otp.dto';
 import { EmailQueue } from '../queues/email.queue';
 import { ApiResponse } from '../common/response/api-response';
+
 
 @Injectable()
 export class AuthService {
@@ -35,12 +37,10 @@ export class AuthService {
   }
 
   async loginUser(dto: LoginDto) {
-    const isEmail = dto.email.includes('@');
+    const isEmailIdentifier = validatorIsEmail(dto.identifier)
 
     const user = await this.prisma.user.findUnique({
-      where: isEmail
-        ? { email: dto.email }
-        : { userName: dto.email },
+      where: isEmailIdentifier ? { email: dto.identifier } : { username: dto.identifier }
     });
 
     const dummyHash = '$2b$10$invalidhashfortimingprotection000000000000000000000';

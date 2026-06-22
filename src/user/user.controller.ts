@@ -8,12 +8,6 @@ import { ApiOperation } from '@nestjs/swagger';
 export class UserController {
   constructor(private readonly userService: UserService) {}
 
-  @Post()
-  @ApiOperation({ summary: 'Create / Register a user' })
-  create(@Body() createUserDto: CreateUserDto) {
-    return this.userService.create(createUserDto);
-  }
-
   @Get()
   @ApiOperation({ summary: 'Fetch all user' })
   findAll() {
