@@ -15,7 +15,10 @@ export class UserService {
   async create(createUserDto: CreateUserDto) {
     const existing = await this.prisma.user.findFirst({
       where: {
-        OR: [{ email: createUserDto.email }, { userName: createUserDto.userName }],
+        OR: [
+          { email: createUserDto.email },
+          { username: createUserDto.username },
+        ],
       },
     });
 
