@@ -26,6 +26,15 @@ export class EmailProcessor extends WorkerHost {
         this.logger.log(`OTP email sent to ${job.data.email}`);
         break;
 
+      case 'password-reset':
+        await this.mailService.sendPasswordReset(
+          job.data.email,
+          job.data.name,
+          job.data.token,
+        );
+        this.logger.log(`Password reset link email sent to ${job.data.email}`);
+        break;
+
       default:
         this.logger.warn(`Unknown job: ${job.name}`);
     }

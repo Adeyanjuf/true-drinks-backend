@@ -16,4 +16,8 @@ export class EmailQueue {
   async resendOtp(email: string, name: string, otp: string) {
     await this.emailQueue.add('resend-otp', { email, name, otp });
   }
+  
+  async sendPasswordResetLink(email: string, name: string, token: string) {
+    await this.emailQueue.add('password-rest', { email, name, token });
+  }
 }

@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
+import * as crypto from 'crypto';
 import * as bcrypt from 'bcrypt';
 import validatorIsEmail from 'validator/lib/isEmail';
 import { PrismaService } from '../prisma/prisma.service';
@@ -15,6 +16,7 @@ import { VerifyOtpDto, VerifyOtpResponseDto } from './dto/verify-otp.dto';
 import { EmailQueue } from '../queues/email.queue';
 import { ApiResponse } from '../common/response/api-response';
 import { CompleteGoogleProfileDto } from './dto/complete-google-profile.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 
 
 @Injectable()
@@ -26,16 +28,55 @@ export class AuthService {
     private readonly emailQueue: EmailQueue,
   ) {}
 
-  private async generateJwt(userId: string, email: string): Promise<string> {
-    const payload = {
-      sub: userId,
-      email,
-    };
+  private async generateJwt(userId: string) {
+    const accessToken = this.jwt.sign(
+      { sub: userId },
+      { expiresIn: '15m' },
+    );
 
-    return this.jwt.signAsync(payload, {
-      secret: this.config.get<string>('JWT_SECRET'),
-      expiresIn: '7d',
+    const rawRefreshToken = crypto.randomBytes(32).toString('hex');
+    const hashedRefreshToken = this.hashToken(rawRefreshToken);
+
+    await this.prisma.refreshToken.create({
+      data: {
+        userId,
+        token: hashedRefreshToken,
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      },
     });
+
+    return { accessToken, refreshToken: rawRefreshToken };
+  }
+
+  async refreshAccessToken(rawRefreshToken: string) {
+    const hashedToken = this.hashToken(rawRefreshToken);
+
+    const storedToken = await this.prisma.refreshToken.findUnique({
+      where: { token: hashedToken },
+    });
+
+    if (!storedToken || storedToken.revokedAt || storedToken.expiresAt < new Date()) {
+      throw new UnauthorizedException('Invalid or expired refresh token');
+    }
+
+    // rotation: kill the old one, issue a fresh pair
+    await this.prisma.refreshToken.update({
+      where: { id: storedToken.id },
+      data: { revokedAt: new Date() },
+    });
+
+    return this.generateJwt(storedToken.userId);
+  }
+
+  async revokeRefreshToken(rawRefreshToken: string) {
+    const hashedToken = this.hashToken(rawRefreshToken);
+    await this.prisma.refreshToken.deleteMany({
+      where: { token: hashedToken },
+    });
+  }
+
+  private hashToken(token: string): string {
+    return crypto.createHash('sha256').update(token).digest('hex');
   }
 
   async loginUser(dto: LoginDto) {
@@ -129,7 +170,7 @@ export class AuthService {
       throw new UnauthorizedException('Invalid verification code');
     }
 
-    const token = await this.generateJwt(user.id, user.email);
+    const token = await this.generateJwt(user.id);
 
     await this.prisma.user.update({
       where: { email: dto.email },
@@ -137,11 +178,11 @@ export class AuthService {
         otp_hashed: null,
         otp_expiresAt: null,
         isVerified: true,
-        jwt_token: token
+        jwt_token: token.accessToken
       },
     });
 
-    return new VerifyOtpResponseDto(token, user.id, user.email, user.name, "user");  // Assuming role is always "user" for now, adjust as needed when roles are implemented
+    return new VerifyOtpResponseDto(token.accessToken, user.id, user.email, user.name, "user");  // Assuming role is always "user" for now, adjust as needed when roles are implemented
   }
 
   async logout(userId: string) {
@@ -176,14 +217,14 @@ export class AuthService {
     });
 
     if (existingUser) {
-      const token = await this.generateJwt(existingUser.id, existingUser.email);
+      const token = await this.generateJwt(existingUser.id);
 
       await this.prisma.user.update({
         where: { id: existingUser.id },
-        data: { jwt_token: token },
+        data: { jwt_token: token.accessToken },
       });
 
-      return (`${process.env.FRONTEND_URL}/auth/callback?token=${token}`);
+      return (`${process.env.FRONTEND_URL}/auth/callback?token=${token.accessToken}`);
     }
 
     const encoded = encodeURIComponent(JSON.stringify({ email: googleProfile.email, name: googleProfile.name }));
@@ -222,13 +263,116 @@ export class AuthService {
       },
     });
 
-    const token = await this.generateJwt(user.id, user.email);
+    const token = await this.generateJwt(user.id);
 
     await this.prisma.user.update({
       where: { id: user.id },
-      data: { jwt_token: token },
+      data: { jwt_token: token.accessToken },
     });
 
-    return new VerifyOtpResponseDto(token, user.id, user.email, user.name, 'user');
+    return new VerifyOtpResponseDto(token.accessToken, user.id, user.email, user.name, 'user');
+  }
+
+  async requestPasswordReset(email: string): Promise<{ message: string }> {
+    const genericResponse = {
+      message: 'If an account exists with that email, a reset link has been sent.',
+    };
+
+    const user = await this.prisma.user.findUnique({ where: { email } });
+
+    if (!user) {
+      return ApiResponse.success(genericResponse); // no enumeration leak
+    }
+
+    // rate limit: block if a token was issued in the last 60s
+    const recentToken = await this.prisma.passwordResetToken.findFirst({
+      where: { userId: user.id, createdAt: { gte: new Date(Date.now() - 60 * 1000) } },
+    });
+    if (recentToken) {
+      return ApiResponse.success(genericResponse); // silently no-op, still generic
+    }
+
+    // invalidate previous unused tokens
+    await this.prisma.passwordResetToken.deleteMany({
+      where: { userId: user.id, usedAt: null },
+    });
+
+    const rawToken = crypto.randomBytes(32).toString('hex');
+    const hashedToken = this.hashToken(rawToken);
+
+    await this.prisma.passwordResetToken.create({
+      data: {
+        userId: user.id,
+        token: hashedToken,
+        expiresAt: new Date(Date.now() + 30 * 60 * 1000),
+      },
+    });
+
+    await this.emailQueue.sendPasswordResetLink(user.email, user.name, rawToken);
+
+    return ApiResponse.success(genericResponse);
+  }
+
+  async resetPassword(token: string, newPassword: string): Promise<{ message: string }> {
+    const hashedToken = this.hashToken(token);
+
+    const resetToken = await this.prisma.passwordResetToken.findUnique({
+      where: { token: hashedToken },
+    });
+
+    if (!resetToken || resetToken.usedAt || resetToken.expiresAt < new Date()) {
+      throw new BadRequestException('Invalid or expired reset token');
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: resetToken.userId },
+        data: { password: hashedPassword },
+      }),
+      this.prisma.passwordResetToken.update({
+        where: { id: resetToken.id },
+        data: { usedAt: new Date() },
+      }),
+      this.prisma.refreshToken.deleteMany({
+        where: { userId: resetToken.userId },
+      }),
+    ]);
+
+    return ApiResponse.success({ message: 'Password has been reset successfully.' });
+  }
+
+  async changePassword(userId: string, dto: ChangePasswordDto): Promise<{ message: string }> {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const isMatch = await bcrypt.compare(dto.currentPassword, user.password);
+    if (!isMatch) {
+      throw new BadRequestException('Current password is incorrect');
+    }
+
+    // optional but good practice: prevent setting the same password again
+    const isSamePassword = await bcrypt.compare(dto.newPassword, user.password);
+    if (isSamePassword) {
+      throw new BadRequestException('New password must be different from current password');
+    }
+
+    const hashedPassword = await bcrypt.hash(dto.newPassword, 10);
+
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: userId },
+        data: { password: hashedPassword },
+      }),
+      this.prisma.refreshToken.deleteMany({
+        where: { userId },
+      }),
+    ]);
+
+    return ApiResponse.success({ message: 'Password changed successfully.' });
   }
 }

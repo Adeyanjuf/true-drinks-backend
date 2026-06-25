@@ -2,6 +2,7 @@ import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Resend } from 'resend';
 import { otpEmailTemplate } from './templates/otp.template';
+import { PasswordResetTemplate } from './templates/password-reset.template';
 
 @Injectable()
 export class MailService {
@@ -24,6 +25,22 @@ export class MailService {
     } catch (error) {
       throw new InternalServerErrorException(
         'Failed to send verification email. Please try again.'
+      );
+    }
+  }
+  
+  async sendPasswordReset(email: string, name: string, token: string): Promise<void> {
+    try {
+      const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${token}`;
+      await this.resend.emails.send({
+        from: this.from,
+        to: email,
+        subject: 'Your Password Reset Link',
+        html: PasswordResetTemplate(resetUrl, name),
+      });
+    } catch (error) {
+      throw new InternalServerErrorException(
+        'Failed to send password reset email. Please try again.'
       );
     }
   }
