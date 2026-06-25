@@ -31,12 +31,17 @@ export class AuthController {
     return this.userService.create(createUserDto);
   }
 
+  @Post('login')
+  @HttpCode(HttpStatus.OK)
+  async login(@Body() dto: LoginDto) {
+    return this.authService.loginUser(dto);
+  }
+
   @Post('request-otp')
   @HttpCode(HttpStatus.OK)
   async requestOtp(@Body() dto: RequestOtpDto) {
     return this.authService.requestOtp(dto);
   }
-
 
   @Post('request-otp/returning')
   @HttpCode(HttpStatus.OK)
