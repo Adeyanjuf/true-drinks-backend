@@ -48,7 +48,7 @@ export class AuthService {
     return { accessToken, refreshToken: rawRefreshToken };
   }
 
-  async refreshAccessToken(rawRefreshToken: string) {
+  private async refreshAccessToken(rawRefreshToken: string) {
     const hashedToken = this.hashToken(rawRefreshToken);
 
     const storedToken = await this.prisma.refreshToken.findUnique({
@@ -182,7 +182,7 @@ export class AuthService {
       },
     });
 
-    return new VerifyOtpResponseDto(token.accessToken, user.id, user.email, user.name, "user");  // Assuming role is always "user" for now, adjust as needed when roles are implemented
+    return new VerifyOtpResponseDto(token, user.id, user.email, user.name, "user");  // Assuming role is always "user" for now, adjust as needed when roles are implemented
   }
 
   async logout(userId: string) {
@@ -270,7 +270,7 @@ export class AuthService {
       data: { jwt_token: token.accessToken },
     });
 
-    return new VerifyOtpResponseDto(token.accessToken, user.id, user.email, user.name, 'user');
+    return new VerifyOtpResponseDto(token, user.id, user.email, user.name, 'user');
   }
 
   async requestPasswordReset(email: string): Promise<{ message: string }> {

@@ -18,7 +18,7 @@ export class VerifyOtpDto {
 }
 
 export class VerifyOtpResponseDto {
-  token: string;
+  token: { accessToken: string, refreshToken: string};
   user: {
     id: string;
     email: string;
@@ -26,7 +26,7 @@ export class VerifyOtpResponseDto {
     role: string | null
   };
 
-  constructor(token: string, userId: string, userEmail: string, userName: string, userRole: string | null) {
+  constructor(token: { accessToken: string, refreshToken: string}, userId: string, userEmail: string, userName: string, userRole: string | null) {
     this.token = token;
     this.user = { id: userId, email: userEmail, name: userName, role: userRole };
   }

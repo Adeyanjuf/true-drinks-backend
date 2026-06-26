@@ -5,10 +5,11 @@ import {
   HttpCode,
   HttpStatus,
   UseGuards,
+  BadRequestException,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
-import { RequestOtpDto } from './dto/request-otp.dto';
+import { LoginDto, RequestOtpDto } from './dto/request-otp.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { CreateUserDto } from '../user/dto/create-user.dto';
 import { UserService } from '../user/user.service';
@@ -79,5 +80,14 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   async changePassword(@GetUser() user: any, @Body() dto: ChangePasswordDto) {
     return await this.authService.changePassword(user.id, dto);
+  }
+
+  @Post('refresh')
+  async refresh(@Body('refreshToken') refreshToken: string) {
+    if (!refreshToken) {
+      throw new BadRequestException('Refresh token is required');
+    }
+    const tokens = await this.authService.refreshAccessToken(refreshToken);
+    return { success: true, ...tokens };
   }
 }
