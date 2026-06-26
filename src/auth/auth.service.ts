@@ -48,7 +48,13 @@ export class AuthService {
     return { accessToken, refreshToken: rawRefreshToken };
   }
 
-  private async refreshAccessToken(rawRefreshToken: string) {
+  async revokeAllSessions(userId: string) {
+    await this.prisma.refreshToken.deleteMany({
+      where: { userId },
+    });
+  }
+
+  async refreshAccessToken(rawRefreshToken: string) {
     const hashedToken = this.hashToken(rawRefreshToken);
 
     const storedToken = await this.prisma.refreshToken.findUnique({

@@ -18,6 +18,8 @@ import { RequestResetDto, ResetPasswordDto } from './dto/request-reset.dto';
 import { GetUser } from './decorators/get-user.decorator';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { JwtGuard } from './guards/jwt.guard';
+import * as client from '@prisma/client';
+import { ApiResponse } from '../common/response/api-response';
 
 @Controller('auth')
 export class AuthController {
@@ -88,6 +90,22 @@ export class AuthController {
       throw new BadRequestException('Refresh token is required');
     }
     const tokens = await this.authService.refreshAccessToken(refreshToken);
-    return { success: true, ...tokens };
+    return ApiResponse.success({ ...tokens });
+  }
+
+  @UseGuards(JwtGuard)
+  @Post('logout')
+  async logout(@Body('refreshToken') refreshToken: string) {
+    if (refreshToken) {
+      await this.authService.revokeRefreshToken(refreshToken);
+    }
+    return ApiResponse.success({ message: 'Logged out successfully.' });
+  }
+
+  @UseGuards(JwtGuard)
+  @Post('logout-all')
+  async logoutAll(@GetUser() user: client.User) {
+    await this.authService.revokeAllSessions(user.id);
+    return ApiResponse.success({ message: 'Logged out from all devices.' });
   }
 }
