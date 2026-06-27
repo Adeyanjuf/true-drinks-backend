@@ -6,6 +6,9 @@ import {
   HttpStatus,
   UseGuards,
   BadRequestException,
+  Get,
+  Req,
+  Res,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
@@ -20,6 +23,8 @@ import { ChangePasswordDto } from './dto/change-password.dto';
 import { JwtGuard } from './guards/jwt.guard';
 import * as client from '@prisma/client';
 import { ApiResponse } from '../common/response/api-response';
+import { CompleteGoogleProfileDto } from './dto/complete-google-profile.dto';
+import { AuthGuard } from '@nestjs/passport';
 
 @Controller('auth')
 export class AuthController {
@@ -82,6 +87,18 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   async changePassword(@GetUser() user: any, @Body() dto: ChangePasswordDto) {
     return await this.authService.changePassword(user.id, dto);
+  }
+
+  @Get('google/callback')
+  @UseGuards(AuthGuard('google'))
+  async googleCallback(@Req() req, @Res() res: Response) {
+    const { email, name } = req.user;
+    await this.authService.googleLogin({ email, name })
+  }
+
+  @Post('complete-profile')
+  async completeGoogleProfile(@Body() dto: CompleteGoogleProfileDto) {
+    return this.authService.completeGoogleProfile(dto);
   }
 
   @Post('refresh')
