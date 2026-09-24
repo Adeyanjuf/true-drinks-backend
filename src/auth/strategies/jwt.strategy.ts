@@ -25,7 +25,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         email: true,
         name: true,
         isVerified: true,
-        jwt_token: true
+        role: true,
       },
     });
 
@@ -35,10 +35,6 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
     if (!user.isVerified) {
       throw new UnauthorizedException('Account not verified');
-    }
-
-    if (!user.jwt_token) {
-      throw new UnauthorizedException('Session expired. Please log in again.');
     }
 
     return user;

@@ -4,6 +4,8 @@ import {
   IsEmail,
   IsNotEmpty,
   IsString,
+  Matches,
+  MinLength,
 } from 'class-validator';
 
 export class CreateUserDto {
@@ -20,13 +22,15 @@ export class CreateUserDto {
     email!: string;
 
     @IsString()
-    @IsNotEmpty()
+    @MinLength(8)
     @ApiProperty({ example: 'secret123', minLength: 8 })
     @Transform(({ value }) => value?.trim())
     password!: string;
 
     @IsString()
-    @IsNotEmpty()
+    @Matches(/^[a-zA-Z0-9_]{3,20}$/, {
+      message: 'Username must be 3-20 characters, letters, numbers and underscores only',
+    })
     @ApiProperty({ example: 'john123' })
     @Transform(({ value }) => value?.trim())
     username!: string;

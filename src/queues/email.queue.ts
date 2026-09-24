@@ -18,6 +18,6 @@ export class EmailQueue {
   }
   
   async sendPasswordResetLink(email: string, name: string, token: string) {
-    await this.emailQueue.add('password-rest', { email, name, token });
+    await this.emailQueue.add('password-reset', { email, name, token });
   }
 }

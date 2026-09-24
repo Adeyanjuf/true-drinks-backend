@@ -9,22 +9,25 @@ import {
   Get,
   Req,
   Res,
+  Query,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { Throttle } from '@nestjs/throttler';
+import { ApiOperation } from '@nestjs/swagger';
+import * as client from '@prisma/client';
+import { AuthGuard } from '@nestjs/passport';
 import { AuthService } from './auth.service';
 import { LoginDto, RequestOtpDto } from './dto/request-otp.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { CreateUserDto } from '../user/dto/create-user.dto';
 import { UserService } from '../user/user.service';
-import { ApiOperation } from '@nestjs/swagger';
 import { RequestResetDto, ResetPasswordDto } from './dto/request-reset.dto';
 import { GetUser } from './decorators/get-user.decorator';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { JwtGuard } from './guards/jwt.guard';
-import * as client from '@prisma/client';
 import { ApiResponse } from '../common/response/api-response';
+import { CheckUsernameDto } from './dto/check-username.dto';
 import { CompleteGoogleProfileDto } from './dto/complete-google-profile.dto';
-import { AuthGuard } from '@nestjs/passport';
 
 @Controller('auth')
 export class AuthController {
@@ -89,16 +92,30 @@ export class AuthController {
     return await this.authService.changePassword(user.id, dto);
   }
 
+  @Get('google')
+  @UseGuards(AuthGuard('google'))
+  googleAuth() {
+    // AuthGuard redirects to Google's consent screen
+  }
+
   @Get('google/callback')
   @UseGuards(AuthGuard('google'))
   async googleCallback(@Req() req, @Res() res: Response) {
     const { email, name } = req.user;
-    await this.authService.googleLogin({ email, name })
+    const redirectUrl = await this.authService.googleLogin({ email, name });
+    return res.redirect(redirectUrl);
+  }
+
+  @Get('check-username')
+  async checkUsername(@Query() dto: CheckUsernameDto) {
+    return ApiResponse.success(
+      await this.authService.checkUsernameAvailability(dto.username),
+    );
   }
 
   @Post('complete-profile')
   async completeGoogleProfile(@Body() dto: CompleteGoogleProfileDto) {
-    return this.authService.completeGoogleProfile(dto);
+    return await this.authService.completeGoogleProfile(dto);
   }
 
   @Post('refresh')

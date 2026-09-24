@@ -11,6 +11,11 @@ datasource db {
   provider = "postgresql"
 }
 
+enum Role {
+  ADMIN
+  CUSTOMER
+}
+
 model User {
   id              String      @id @default(uuid())
   name            String
@@ -20,8 +25,8 @@ model User {
   isVerified      Boolean     @default(false)
   otp_hashed      String?
   otp_expiresAt   DateTime?
-  jwt_token       String?
-  
+  role            Role        @default(CUSTOMER)
+
   passwordResetTokens PasswordResetToken[]
   refreshTokens RefreshToken[]
 
@@ -53,4 +58,37 @@ model RefreshToken {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+model Category {
+  id        String    @id @default(cuid())
+  name      String    @unique
+  slug      String    @unique
+  products  Product[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model Product {
+  id              String   @id @default(cuid())
+  name            String
+  description     String?
+  images          String[]
+  brand           String?
+  pricePence      Int // price in pence, before discount
+  discountPercent Int      @default(0) // 0-100, applied to pricePence
+  weightGrams     Int // weight per unit, used for order weight at checkout
+  abv             Float? // alcohol by volume, %
+  isAgeRestricted Boolean  @default(false)
+  stock           Int      @default(0) // in stock when > 0
+  categoryId      String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+
+  @@index([categoryId])
+  @@index([pricePence])
+  @@index([abv])
+  @@index([brand])
 }

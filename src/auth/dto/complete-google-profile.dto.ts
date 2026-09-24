@@ -1,4 +1,4 @@
-import { IsEmail, IsString, IsNotEmpty, Matches } from "class-validator";
+import { IsEmail, IsString, IsNotEmpty, Matches, MinLength } from "class-validator";
 
 export class CompleteGoogleProfileDto {
   @IsEmail()
@@ -16,6 +16,6 @@ export class CompleteGoogleProfileDto {
   name!: string;
 
   @IsString()
-  @IsNotEmpty()
+  @MinLength(8)
   password!: string;
 }

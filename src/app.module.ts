@@ -10,7 +10,9 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { TasksModule } from './tasks/tasks.module';
 import { QueuesModule } from './queues/queues.module';
 import { AuthModule } from './auth/auth.module';
-import { UserModule } from './user/user.module'
+import { UserModule } from './user/user.module';
+import { CategoryModule } from './category/category.module';
+import { ProductModule } from './product/product.module';
 
 @Module({
   imports: [
@@ -40,6 +42,8 @@ import { UserModule } from './user/user.module'
     QueuesModule,
     AuthModule,
     UserModule,
+    CategoryModule,
+    ProductModule,
   ],
   controllers: [AppController],
   providers: [AppService],

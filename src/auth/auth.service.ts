@@ -29,10 +29,7 @@ export class AuthService {
   ) {}
 
   private async generateJwt(userId: string) {
-    const accessToken = this.jwt.sign(
-      { sub: userId },
-      { expiresIn: '15m' },
-    );
+    const accessToken = this.jwt.sign({ sub: userId });
 
     const rawRefreshToken = crypto.randomBytes(32).toString('hex');
     const hashedRefreshToken = this.hashToken(rawRefreshToken);
@@ -184,26 +181,10 @@ export class AuthService {
         otp_hashed: null,
         otp_expiresAt: null,
         isVerified: true,
-        jwt_token: token.accessToken
       },
     });
 
-    return new VerifyOtpResponseDto(token, user.id, user.email, user.name, "user");  // Assuming role is always "user" for now, adjust as needed when roles are implemented
-  }
-
-  async logout(userId: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-    });
-
-    if (!user) throw new NotFoundException('Account not found');
-
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: { jwt_token: null },
-    });
-
-    return { message: 'Logged out successfully' };
+    return new VerifyOtpResponseDto(token, user.id, user.email, user.name, user.role);
   }
 
   async checkUsernameAvailability(username: string) {
@@ -224,11 +205,6 @@ export class AuthService {
 
     if (existingUser) {
       const token = await this.generateJwt(existingUser.id);
-
-      await this.prisma.user.update({
-        where: { id: existingUser.id },
-        data: { jwt_token: token.accessToken },
-      });
 
       return (`${process.env.FRONTEND_URL}/auth/callback?token=${token.accessToken}`);
     }
@@ -271,12 +247,7 @@ export class AuthService {
 
     const token = await this.generateJwt(user.id);
 
-    await this.prisma.user.update({
-      where: { id: user.id },
-      data: { jwt_token: token.accessToken },
-    });
-
-    return new VerifyOtpResponseDto(token, user.id, user.email, user.name, 'user');
+    return new VerifyOtpResponseDto(token, user.id, user.email, user.name, user.role);
   }
 
   async requestPasswordReset(email: string): Promise<{ message: string }> {
