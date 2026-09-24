@@ -22,6 +22,7 @@ import { JwtGuard } from '../auth/guards/jwt.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { ApiResponse } from '../common/response/api-response';
+import { ApiAdminOnly, ApiEnvelope } from '../common/response/api-response.doc';
 
 @ApiTags('products')
 @Controller('products')
@@ -29,6 +30,25 @@ export class ProductController {
   constructor(private readonly productService: ProductService) {}
 
   @Get()
+  @ApiEnvelope(
+    'Paginated products; prices in pence, finalPricePence = price after discount',
+    {
+      items: [
+        {
+          id: 'cuid',
+          name: 'Smirnoff Red Label 70cl',
+          pricePence: 1899,
+          discountPercent: 10,
+          finalPricePence: 1709,
+          weightGrams: 1100,
+          abv: 37.5,
+          isAgeRestricted: true,
+          stock: 12,
+        },
+      ],
+      meta: { page: 1, limit: 20, total: 1, totalPages: 1 },
+    },
+  )
   @ApiOperation({
     summary: 'List products with filters and pagination (public)',
   })
@@ -44,6 +64,7 @@ export class ProductController {
 
   @Post()
   @ApiBearerAuth('access-token')
+  @ApiAdminOnly()
   @UseGuards(JwtGuard, RolesGuard)
   @Roles('ADMIN')
   @ApiOperation({ summary: 'Create a product (admin)' })
@@ -57,6 +78,7 @@ export class ProductController {
 
   @Patch(':id')
   @ApiBearerAuth('access-token')
+  @ApiAdminOnly()
   @UseGuards(JwtGuard, RolesGuard)
   @Roles('ADMIN')
   @ApiOperation({ summary: 'Update a product (admin)' })
@@ -68,8 +90,10 @@ export class ProductController {
   }
 
   @Delete(':id')
+  @ApiEnvelope('Deleted', null, 'Product deleted')
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth('access-token')
+  @ApiAdminOnly()
   @UseGuards(JwtGuard, RolesGuard)
   @Roles('ADMIN')
   @ApiOperation({ summary: 'Delete a product (admin)' })

@@ -29,7 +29,7 @@ import { UserService } from '../user/user.service';
     ThrottlerModule.forRoot([
       {
         ttl: 60000, // 60 seconds, in ms
-        limit: 10,  // 10 requests per ttl window, global default
+        limit: 10, // 10 requests per ttl window, global default
       },
     ]),
   ],

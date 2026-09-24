@@ -17,6 +17,11 @@ import { JwtGuard } from '../auth/guards/jwt.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { ApiResponse } from '../common/response/api-response';
+import {
+  ApiAdminOnly,
+  ApiConflict,
+  ApiEnvelope,
+} from '../common/response/api-response.doc';
 
 @ApiTags('categories')
 @Controller('categories')
@@ -24,6 +29,9 @@ export class CategoryController {
   constructor(private readonly categoryService: CategoryService) {}
 
   @Get()
+  @ApiEnvelope('All categories', [
+    { id: 'cuid', name: 'Whisky', slug: 'whisky' },
+  ])
   @ApiOperation({ summary: 'List all categories (public)' })
   async findAll() {
     return ApiResponse.success(await this.categoryService.findAll());
@@ -36,7 +44,9 @@ export class CategoryController {
   }
 
   @Post()
+  @ApiConflict('A category with this name already exists')
   @ApiBearerAuth('access-token')
+  @ApiAdminOnly()
   @UseGuards(JwtGuard, RolesGuard)
   @Roles('ADMIN')
   @ApiOperation({ summary: 'Create a category (admin)' })
@@ -49,7 +59,9 @@ export class CategoryController {
   }
 
   @Patch(':id')
+  @ApiConflict('A category with this name already exists')
   @ApiBearerAuth('access-token')
+  @ApiAdminOnly()
   @UseGuards(JwtGuard, RolesGuard)
   @Roles('ADMIN')
   @ApiOperation({ summary: 'Update a category (admin)' })
@@ -61,8 +73,13 @@ export class CategoryController {
   }
 
   @Delete(':id')
+  @ApiEnvelope('Deleted', null, 'Category deleted')
+  @ApiConflict(
+    'Cannot delete a category with 3 product(s). Move or delete them first.',
+  )
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth('access-token')
+  @ApiAdminOnly()
   @UseGuards(JwtGuard, RolesGuard)
   @Roles('ADMIN')
   @ApiOperation({

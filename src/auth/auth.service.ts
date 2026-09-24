@@ -18,7 +18,6 @@ import { ApiResponse } from '../common/response/api-response';
 import { CompleteGoogleProfileDto } from './dto/complete-google-profile.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 
-
 @Injectable()
 export class AuthService {
   constructor(
@@ -58,7 +57,11 @@ export class AuthService {
       where: { token: hashedToken },
     });
 
-    if (!storedToken || storedToken.revokedAt || storedToken.expiresAt < new Date()) {
+    if (
+      !storedToken ||
+      storedToken.revokedAt ||
+      storedToken.expiresAt < new Date()
+    ) {
       throw new UnauthorizedException('Invalid or expired refresh token');
     }
 
@@ -83,14 +86,20 @@ export class AuthService {
   }
 
   async loginUser(dto: LoginDto) {
-    const isEmailIdentifier = validatorIsEmail(dto.identifier)
+    const isEmailIdentifier = validatorIsEmail(dto.identifier);
 
     const user = await this.prisma.user.findUnique({
-      where: isEmailIdentifier ? { email: dto.identifier } : { username: dto.identifier }
+      where: isEmailIdentifier
+        ? { email: dto.identifier }
+        : { username: dto.identifier },
     });
 
-    const dummyHash = '$2b$10$invalidhashfortimingprotection000000000000000000000';
-    const isMatch = await bcrypt.compare(dto.password, user?.password ?? dummyHash);
+    const dummyHash =
+      '$2b$10$invalidhashfortimingprotection000000000000000000000';
+    const isMatch = await bcrypt.compare(
+      dto.password,
+      user?.password ?? dummyHash,
+    );
 
     if (!user || !isMatch) {
       throw new UnauthorizedException('Invalid credentials');
@@ -98,23 +107,24 @@ export class AuthService {
 
     const message = await this.requestOtp({ email: user.email });
 
-    return ApiResponse.success(message)
+    return ApiResponse.success(message);
   }
-  
-  async requestOtp(dto: RequestOtpDto, isReturningUser = false): Promise<{ message: string }> {
+
+  async requestOtp(
+    dto: RequestOtpDto,
+    isReturningUser = false,
+  ): Promise<{ message: string }> {
     const user = await this.prisma.user.findUnique({
       where: { email: dto.email },
     });
 
     if (isReturningUser && !user) {
-      throw new NotFoundException(
-        'No account found with this email address'
-      );
+      throw new NotFoundException('No account found with this email address');
     }
 
     if (!isReturningUser && !user) {
       throw new NotFoundException(
-        'user record not found. Please complete the booking form first.'
+        'user record not found. Please complete the booking form first.',
       );
     }
 
@@ -125,7 +135,7 @@ export class AuthService {
 
       if (now < cooldownThreshold) {
         throw new BadRequestException(
-          'Please wait 60 seconds before requesting a new code'
+          'Please wait 60 seconds before requesting a new code',
         );
       }
     }
@@ -140,7 +150,7 @@ export class AuthService {
       data: { otp_hashed, otp_expiresAt },
     });
 
-    user && await this.emailQueue.sendOtp(user.email, user.name, otp);
+    user && (await this.emailQueue.sendOtp(user.email, user.name, otp));
 
     return { message: 'Verification code sent to your email' };
   }
@@ -156,14 +166,14 @@ export class AuthService {
 
     if (!user.otp_hashed || !user.otp_expiresAt) {
       throw new BadRequestException(
-        'No verification code found. Please request a new one.'
+        'No verification code found. Please request a new one.',
       );
     }
 
     const now = new Date();
     if (now > new Date(user.otp_expiresAt)) {
       throw new BadRequestException(
-        'Verification code has expired. Please request a new one.'
+        'Verification code has expired. Please request a new one.',
       );
     }
 
@@ -184,7 +194,13 @@ export class AuthService {
       },
     });
 
-    return new VerifyOtpResponseDto(token, user.id, user.email, user.name, user.role);
+    return new VerifyOtpResponseDto(
+      token,
+      user.id,
+      user.email,
+      user.name,
+      user.role,
+    );
   }
 
   async checkUsernameAvailability(username: string) {
@@ -206,11 +222,13 @@ export class AuthService {
     if (existingUser) {
       const token = await this.generateJwt(existingUser.id);
 
-      return (`${process.env.FRONTEND_URL}/auth/callback?token=${token.accessToken}`);
+      return `${process.env.FRONTEND_URL}/auth/callback?token=${token.accessToken}`;
     }
 
-    const encoded = encodeURIComponent(JSON.stringify({ email: googleProfile.email, name: googleProfile.name }));
-    return (`${process.env.FRONTEND_URL}/auth/complete-profile?data=${encoded}`);
+    const encoded = encodeURIComponent(
+      JSON.stringify({ email: googleProfile.email, name: googleProfile.name }),
+    );
+    return `${process.env.FRONTEND_URL}/auth/complete-profile?data=${encoded}`;
   }
 
   async completeGoogleProfile(dto: CompleteGoogleProfileDto) {
@@ -218,7 +236,7 @@ export class AuthService {
     const existingEmail = await this.prisma.user.findUnique({
       where: { email: dto.email },
     });
-    
+
     if (existingEmail) {
       throw new ConflictException('An account with this email already exists');
     }
@@ -247,12 +265,19 @@ export class AuthService {
 
     const token = await this.generateJwt(user.id);
 
-    return new VerifyOtpResponseDto(token, user.id, user.email, user.name, user.role);
+    return new VerifyOtpResponseDto(
+      token,
+      user.id,
+      user.email,
+      user.name,
+      user.role,
+    );
   }
 
   async requestPasswordReset(email: string): Promise<{ message: string }> {
     const genericResponse = {
-      message: 'If an account exists with that email, a reset link has been sent.',
+      message:
+        'If an account exists with that email, a reset link has been sent.',
     };
 
     const user = await this.prisma.user.findUnique({ where: { email } });
@@ -263,7 +288,10 @@ export class AuthService {
 
     // rate limit: block if a token was issued in the last 60s
     const recentToken = await this.prisma.passwordResetToken.findFirst({
-      where: { userId: user.id, createdAt: { gte: new Date(Date.now() - 60 * 1000) } },
+      where: {
+        userId: user.id,
+        createdAt: { gte: new Date(Date.now() - 60 * 1000) },
+      },
     });
     if (recentToken) {
       return ApiResponse.success(genericResponse); // silently no-op, still generic
@@ -285,12 +313,19 @@ export class AuthService {
       },
     });
 
-    await this.emailQueue.sendPasswordResetLink(user.email, user.name, rawToken);
+    await this.emailQueue.sendPasswordResetLink(
+      user.email,
+      user.name,
+      rawToken,
+    );
 
     return ApiResponse.success(genericResponse);
   }
 
-  async resetPassword(token: string, newPassword: string): Promise<{ message: string }> {
+  async resetPassword(
+    token: string,
+    newPassword: string,
+  ): Promise<{ message: string }> {
     const hashedToken = this.hashToken(token);
 
     const resetToken = await this.prisma.passwordResetToken.findUnique({
@@ -317,10 +352,15 @@ export class AuthService {
       }),
     ]);
 
-    return ApiResponse.success({ message: 'Password has been reset successfully.' });
+    return ApiResponse.success({
+      message: 'Password has been reset successfully.',
+    });
   }
 
-  async changePassword(userId: string, dto: ChangePasswordDto): Promise<{ message: string }> {
+  async changePassword(
+    userId: string,
+    dto: ChangePasswordDto,
+  ): Promise<{ message: string }> {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
 
     if (!user) {
@@ -335,7 +375,9 @@ export class AuthService {
     // optional but good practice: prevent setting the same password again
     const isSamePassword = await bcrypt.compare(dto.newPassword, user.password);
     if (isSamePassword) {
-      throw new BadRequestException('New password must be different from current password');
+      throw new BadRequestException(
+        'New password must be different from current password',
+      );
     }
 
     const hashedPassword = await bcrypt.hash(dto.newPassword, 10);

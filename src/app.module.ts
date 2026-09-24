@@ -1,7 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import * as Joi from 'joi';
-import { BullModule } from '@nestjs/bullmq';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PrismaModule } from './prisma/prisma.module';
@@ -25,15 +24,6 @@ import { ProductModule } from './product/product.module';
         RESEND_API_KEY: Joi.string().required(),
         MAIL_FROM: Joi.string().required(),
       }),
-    }),
-    BullModule.forRoot({
-      connection: {
-        host: process.env.REDIS_HOST,
-        port: parseInt(process.env.REDIS_PORT || '6379', 10),
-        password: process.env.REDIS_PASSWORD,
-        tls: {}, // required for Upstash
-        db: 0,
-      },
     }),
     PrismaModule,
     MailModule,

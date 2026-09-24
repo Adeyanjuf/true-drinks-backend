@@ -12,6 +12,7 @@ Source: Requirements Document dated 2026-09-18. Legend: `[x]` done, `[~]` exists
 - [x] Add a `checkUsernameAvailability` route (service + DTO exist, no route)
 
 ## 1. Foundation
+- [x] Swagger docs up to date for auth, categories, products (tags, bearer auth, DTO props, response envelope, error codes). **Rule: every new endpoint gets `@ApiTags`, `@ApiOperation`, `@ApiBearerAuth('access-token')` if guarded, `@ApiProperty` on DTOs, and response docs via `src/common/response/api-response.doc.ts`.**
 - [x] NestJS, Prisma/Postgres, BullMQ/Redis, Resend, Swagger, throttling, global error filter
 - [x] Add `role` to User (`ADMIN` | `CUSTOMER`); replace hardcoded `"user"` in `VerifyOtpResponseDto`
 - [x] `RolesGuard` + `@Roles()` decorator (Admin-only routes); include role in JWT/validate
@@ -73,11 +74,12 @@ Source: Requirements Document dated 2026-09-18. Legend: `[x]` done, `[~]` exists
 - [ ] `GET /tracking/:trackingId`: returns friendly status text (not raw enum), no PII leakage
 - [ ] Rate limit to prevent tracking-ID enumeration
 
-## 9. Emails (section 5) — extend existing BullMQ/Resend setup
+## 9. Emails (section 5) — extend existing pg-boss/Resend setup
+- [x] Queue moved from BullMQ/Redis to pg-boss 11 (Postgres `pgboss` schema); queues `email-otp`, `email-password-reset`, retries 3x with backoff, payloads purged after 15 min
 - [ ] Order receipt template with tracking ID (sent after payment verified)
 - [ ] Out-for-delivery template
 - [ ] Delivered template
-- [ ] New job names in `email.queue` / `email.processor`; retries + backoff on jobs
+- [ ] New pg-boss queues + `work()` handlers in `src/queues` (retries/backoff already configured)
 - [ ] Delivery tracking (Resend webhooks/logging)
 
 ## 10. Delivery / logistics (section 6)

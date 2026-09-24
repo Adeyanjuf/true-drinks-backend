@@ -8,7 +8,7 @@ export class VerifyOtpDto {
   @IsNotEmpty()
   @ApiProperty({ example: 'JohnDoe@example.com' })
   email!: string;
-    
+
   @IsString()
   @IsNotEmpty()
   @Transform(({ value }) => value?.trim())
@@ -18,16 +18,36 @@ export class VerifyOtpDto {
 }
 
 export class VerifyOtpResponseDto {
-  token: { accessToken: string, refreshToken: string};
+  @ApiProperty({ example: { accessToken: 'jwt', refreshToken: 'opaque-hex' } })
+  token: { accessToken: string; refreshToken: string };
+  @ApiProperty({
+    example: {
+      id: 'uuid',
+      email: 'john@example.com',
+      name: 'John Doe',
+      role: 'CUSTOMER',
+    },
+  })
   user: {
     id: string;
     email: string;
     name: string;
-    role: string | null
+    role: string | null;
   };
 
-  constructor(token: { accessToken: string, refreshToken: string}, userId: string, userEmail: string, userName: string, userRole: string | null) {
+  constructor(
+    token: { accessToken: string; refreshToken: string },
+    userId: string,
+    userEmail: string,
+    userName: string,
+    userRole: string | null,
+  ) {
     this.token = token;
-    this.user = { id: userId, email: userEmail, name: userName, role: userRole };
+    this.user = {
+      id: userId,
+      email: userEmail,
+      name: userName,
+      role: userRole,
+    };
   }
 }
