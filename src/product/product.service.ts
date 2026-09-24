@@ -5,20 +5,12 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { withFinalPrice } from '../common/pricing';
 import {
   CreateProductDto,
   ProductQueryDto,
   UpdateProductDto,
 } from './dto/product.dto';
-
-const withFinalPrice = <
-  T extends { pricePence: number; discountPercent: number },
->(
-  p: T,
-) => ({
-  ...p,
-  finalPricePence: Math.round((p.pricePence * (100 - p.discountPercent)) / 100),
-});
 
 @Injectable()
 export class ProductService {

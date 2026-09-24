@@ -29,6 +29,10 @@ model User {
 
   passwordResetTokens PasswordResetToken[]
   refreshTokens RefreshToken[]
+  cart Cart?
+  address UserAddress?
+  orders Order[]
+  statusChanges OrderStatusHistory[]
 
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
@@ -86,9 +90,158 @@ model Product {
   updatedAt       DateTime @updatedAt
 
   category Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  cartItems CartItem[]
+  orderItems OrderItem[]
 
   @@index([categoryId])
   @@index([pricePence])
   @@index([abv])
   @@index([brand])
+}
+
+model Cart {
+  id        String     @id @default(cuid())
+  userId    String?    @unique
+  token     String?    @unique // guest carts only, sent as x-cart-token
+  items     CartItem[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model CartItem {
+  id        String @id @default(cuid())
+  cartId    String
+  productId String
+  quantity  Int
+
+  cart    Cart    @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([cartId, productId])
+}
+
+enum PromoType {
+  PERCENT
+  FIXED
+}
+
+model PromoCode {
+  id            String    @id @default(cuid())
+  code          String    @unique // stored uppercase
+  type          PromoType
+  value         Int // percent (1-100) or pence
+  minSpendPence Int       @default(0)
+  expiresAt     DateTime?
+  usageLimit    Int?
+  usedCount     Int       @default(0)
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+enum OrderStatus {
+  PACKAGING
+  OUT_FOR_DELIVERY
+  DELIVERED
+}
+
+enum PendingCheckoutStatus {
+  CREATED
+  COMPLETED
+  FAILED
+}
+
+// Server-side snapshot taken when the PaymentIntent is created; the Order is built from it
+// when Stripe confirms payment. Snapshot (which holds PII) is blanked once completed.
+model PendingCheckout {
+  id                    String                @id @default(cuid())
+  snapshot              Json
+  stripePaymentIntentId String?               @unique
+  status                PendingCheckoutStatus @default(CREATED)
+  ageVerifiedAt         DateTime?
+  ageMethod             String?
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+}
+
+// Orders are never hard-deleted (HMRC: keep sales records ~6 years).
+model Order {
+  id                    String      @id @default(cuid())
+  trackingId            String      @unique
+  userId                String?
+  email                 String
+  name                  String
+  addressLine1          String
+  addressLine2          String?
+  city                  String
+  postcode              String
+  phone                 String?
+  country               String      @default("GB")
+  status                OrderStatus @default(PACKAGING)
+  subtotalPence         Int
+  discountPence         Int
+  shippingPence         Int
+  totalPence            Int
+  totalWeightGrams      Int
+  promoCode             String?
+  stripePaymentIntentId String      @unique
+  ageVerifiedAt         DateTime?
+  ageMethod             String?
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @updatedAt
+
+  user    User?                @relation(fields: [userId], references: [id], onDelete: SetNull)
+  items   OrderItem[]
+  history OrderStatusHistory[]
+
+  @@index([userId])
+  @@index([email])
+  @@index([status])
+}
+
+model OrderItem {
+  id              String  @id @default(cuid())
+  orderId         String
+  productId       String?
+  name            String
+  listPricePence  Int
+  discountPercent Int
+  unitPricePence  Int
+  weightGrams     Int
+  quantity        Int
+  isAgeRestricted Boolean
+
+  order   Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+}
+
+model OrderStatusHistory {
+  id          String       @id @default(cuid())
+  orderId     String
+  fromStatus  OrderStatus?
+  toStatus    OrderStatus
+  changedById String? // admin who made the change; null for the initial status
+  changedAt   DateTime     @default(now())
+
+  order     Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  changedBy User? @relation(fields: [changedById], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+}
+
+model UserAddress {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  line1     String
+  line2     String?
+  city      String
+  postcode  String
+  phone     String?
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

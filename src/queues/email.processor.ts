@@ -1,7 +1,11 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { OrderStatus } from '@prisma/client';
+import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
 import { OtpEmailJob, PasswordResetEmailJob } from './email.queue';
 import {
+  EMAIL_ORDER_RECEIPT_QUEUE,
+  EMAIL_ORDER_STATUS_QUEUE,
   EMAIL_OTP_QUEUE,
   EMAIL_PASSWORD_RESET_QUEUE,
   PgBossService,
@@ -14,6 +18,7 @@ export class EmailProcessor implements OnModuleInit {
   constructor(
     private readonly pgBoss: PgBossService,
     private readonly mailService: MailService,
+    private readonly prisma: PrismaService,
   ) {}
 
   async onModuleInit() {
@@ -43,5 +48,40 @@ export class EmailProcessor implements OnModuleInit {
         }
       },
     );
+
+    await this.pgBoss.boss.work<{ orderId: string }>(
+      EMAIL_ORDER_RECEIPT_QUEUE,
+      async (jobs) => {
+        for (const job of jobs) {
+          const order = await this.loadOrder(job.data.orderId);
+          if (!order) continue;
+          await this.mailService.sendOrderReceipt(order);
+          this.logger.log(`Order receipt sent for ${order.trackingId}`);
+        }
+      },
+    );
+
+    await this.pgBoss.boss.work<{ orderId: string; status: OrderStatus }>(
+      EMAIL_ORDER_STATUS_QUEUE,
+      async (jobs) => {
+        for (const job of jobs) {
+          const order = await this.loadOrder(job.data.orderId);
+          if (!order) continue;
+          await this.mailService.sendOrderStatus(order, job.data.status);
+          this.logger.log(
+            `Order ${job.data.status} email sent for ${order.trackingId}`,
+          );
+        }
+      },
+    );
+  }
+
+  private async loadOrder(orderId: string) {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: { items: true },
+    });
+    if (!order) this.logger.warn(`Order ${orderId} not found; skipping email`);
+    return order;
   }
 }

@@ -1,5 +1,8 @@
 import { Injectable } from '@nestjs/common';
+import { OrderStatus } from '@prisma/client';
 import {
+  EMAIL_ORDER_RECEIPT_QUEUE,
+  EMAIL_ORDER_STATUS_QUEUE,
   EMAIL_OTP_QUEUE,
   EMAIL_PASSWORD_RESET_QUEUE,
   PgBossService,
@@ -37,5 +40,16 @@ export class EmailQueue {
       name,
       token,
     });
+  }
+
+  // Order emails carry only the order id; the processor loads fresh data (no PII in the job).
+  async sendOrderReceipt(orderId: string) {
+    await this.pgBoss.ready();
+    await this.pgBoss.boss.send(EMAIL_ORDER_RECEIPT_QUEUE, { orderId });
+  }
+
+  async sendOrderStatus(orderId: string, status: OrderStatus) {
+    await this.pgBoss.ready();
+    await this.pgBoss.boss.send(EMAIL_ORDER_STATUS_QUEUE, { orderId, status });
   }
 }

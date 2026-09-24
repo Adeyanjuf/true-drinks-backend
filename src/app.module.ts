@@ -12,6 +12,11 @@ import { AuthModule } from './auth/auth.module';
 import { UserModule } from './user/user.module';
 import { CategoryModule } from './category/category.module';
 import { ProductModule } from './product/product.module';
+import { CartModule } from './cart/cart.module';
+import { PromoModule } from './promo/promo.module';
+import { CheckoutModule } from './checkout/checkout.module';
+import { OrdersModule } from './orders/orders.module';
+import { StripeModule } from './stripe/stripe.module';
 
 @Module({
   imports: [
@@ -23,6 +28,8 @@ import { ProductModule } from './product/product.module';
         JWT_EXPIRES_IN: Joi.string().required(),
         RESEND_API_KEY: Joi.string().required(),
         MAIL_FROM: Joi.string().required(),
+        STRIPE_SECRET_KEY: Joi.string().required(),
+        STRIPE_WEBHOOK_SECRET: Joi.string().required(),
       }),
     }),
     PrismaModule,
@@ -34,6 +41,11 @@ import { ProductModule } from './product/product.module';
     UserModule,
     CategoryModule,
     ProductModule,
+    CartModule,
+    PromoModule,
+    CheckoutModule,
+    OrdersModule,
+    StripeModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -3,6 +3,12 @@ import { ConfigService } from '@nestjs/config';
 import { Resend } from 'resend';
 import { otpEmailTemplate } from './templates/otp.template';
 import { PasswordResetTemplate } from './templates/password-reset.template';
+import { OrderStatus } from '@prisma/client';
+import {
+  OrderEmailData,
+  orderReceiptTemplate,
+  orderStatusTemplate,
+} from './templates/order.template';
 
 @Injectable()
 export class MailService {
@@ -22,14 +28,18 @@ export class MailService {
         subject: 'Your verification code',
         html: otpEmailTemplate(otp, name),
       });
-    } catch (error) {
+    } catch {
       throw new InternalServerErrorException(
-        'Failed to send verification email. Please try again.'
+        'Failed to send verification email. Please try again.',
       );
     }
   }
-  
-  async sendPasswordReset(email: string, name: string, token: string): Promise<void> {
+
+  async sendPasswordReset(
+    email: string,
+    name: string,
+    token: string,
+  ): Promise<void> {
     try {
       const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${token}`;
       await this.resend.emails.send({
@@ -38,9 +48,38 @@ export class MailService {
         subject: 'Your Password Reset Link',
         html: PasswordResetTemplate(resetUrl, name),
       });
-    } catch (error) {
+    } catch {
       throw new InternalServerErrorException(
-        'Failed to send password reset email. Please try again.'
+        'Failed to send password reset email. Please try again.',
+      );
+    }
+  }
+
+  async sendOrderReceipt(order: OrderEmailData): Promise<void> {
+    await this.send(
+      order.email,
+      `Your order ${order.trackingId}`,
+      orderReceiptTemplate(order),
+    );
+  }
+
+  async sendOrderStatus(
+    order: Pick<OrderEmailData, 'email' | 'name' | 'trackingId'>,
+    status: OrderStatus,
+  ): Promise<void> {
+    const subject =
+      status === 'DELIVERED'
+        ? `Your order ${order.trackingId} has been delivered`
+        : `Your order ${order.trackingId} is out for delivery`;
+    await this.send(order.email, subject, orderStatusTemplate(order, status));
+  }
+
+  private async send(to: string, subject: string, html: string): Promise<void> {
+    try {
+      await this.resend.emails.send({ from: this.from, to, subject, html });
+    } catch {
+      throw new InternalServerErrorException(
+        'Failed to send email. Please try again.',
       );
     }
   }

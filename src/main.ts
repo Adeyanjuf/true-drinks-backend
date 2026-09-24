@@ -6,7 +6,9 @@ import { GlobalExceptionFilter } from './common/filters/http-exception.filter';
 import { NestExpressApplication } from '@nestjs/platform-express';
 
 async function bootstrap() {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    rawBody: true, // Stripe webhook signature verification needs the raw body
+  });
 
   app.setGlobalPrefix('api');
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
@@ -16,7 +18,7 @@ async function bootstrap() {
     origin: ['http://localhost:3000'],
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     credentials: true,
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-cart-token'],
   });
 
   app.set('trust proxy', 1);
@@ -31,6 +33,14 @@ async function bootstrap() {
     )
     .addTag('auth', 'Registration, OTP login, tokens, password flows')
     .addTag('categories', 'Drink categories (writes are admin-only)')
+    .addTag(
+      'cart',
+      'Server-side cart for guests (x-cart-token) and logged-in users',
+    )
+    .addTag('checkout', 'Quote, payment and order creation')
+    .addTag('orders', 'Order history and admin order management')
+    .addTag('tracking', 'Public order tracking')
+    .addTag('promo-codes', 'Promotional codes (admin-only)')
     .addTag('products', 'Drinks catalogue with filters (writes are admin-only)')
     .setVersion('1.0')
     .addBearerAuth(
