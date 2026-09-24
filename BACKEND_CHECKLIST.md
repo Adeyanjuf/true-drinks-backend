@@ -101,10 +101,16 @@ Source: Requirements Document dated 2026-09-18. Legend: `[x]` done, `[~]` exists
 - [ ] Cart persistence for guests
 - [ ] Guest data retention policy (doc says none planned; conflicts with 6-year HMRC rule)
 
+## Client answers applied (2026-09-24)
+- [x] Discounts are percentages; apply to items, not shipping; promo has a usage limit and a customer who arrives after the limit gets no discount (redemption is reserved when payment starts, released if abandoned/failed)
+- [x] Stock is a plain number; admin low-stock warning = per-product `lowStockThreshold` (default 5), `GET /products/low-stock` and an email to verified admins when an order crosses the threshold
+- [x] Keep order records incl. email + phone; guest orders auto-link to the account when the same email is verified (OTP/Google)
+- [x] Phone number required at checkout and on the saved address; a single delivery address is enough
+
 ## Still open after cart/checkout/orders work
 - [ ] Stripe webhook must be registered in the Stripe dashboard (or `stripe listen`) for each environment; prod needs a public URL
 - [ ] Real third-party age verification provider (currently DOB self-declaration only) + legal sign-off
-- [ ] Confirm shipping prices, discount semantics, promo rules with client (§12)
+- [ ] Confirm shipping prices with client (discounts/promo/stock/retention answered above)
 - [ ] Image upload/storage, Resend delivery webhooks, courier integration spike
 - [ ] Account deletion that anonymises PII but keeps orders (orders.userId already SET NULL)
 - [ ] Guest data retention policy; tracking-ID/receipt email link to frontend tracking page (needs frontend route)

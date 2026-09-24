@@ -8,6 +8,7 @@ import {
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { StripeService } from '../stripe/stripe.service';
+import { OrdersService } from '../orders/orders.service';
 import { AgeVerificationService } from './age-verification';
 import { CheckoutSnapshot } from './checkout.types';
 import { CreatePaymentIntentDto } from './dto/checkout.dto';
@@ -26,6 +27,7 @@ export class CheckoutService {
     private readonly prisma: PrismaService,
     private readonly stripe: StripeService,
     private readonly ageVerification: AgeVerificationService,
+    private readonly orders: OrdersService,
   ) {}
 
   /** Prices the caller's cart: stock check, promo, weight and shipping band. */
@@ -71,6 +73,11 @@ export class CheckoutService {
    * PaymentIntent. No Order exists until Stripe confirms payment (see OrdersService).
    */
   async createPaymentIntent(ctx: CartContext, dto: CreatePaymentIntentDto) {
+    // Free anything held by this customer's earlier unpaid attempt (promo, open PaymentIntent)
+    // before quoting, otherwise their own held redemption would block their retry.
+    const { cartId } = await this.cartService.getCart(ctx);
+    await this.orders.abandonStaleForCart(cartId);
+
     const quote = await this.quote(ctx, dto.promoCode);
 
     // Runs before any PaymentIntent exists, so a failed check means no charge and no order.
@@ -110,15 +117,21 @@ export class CheckoutService {
       totalWeightGrams: quote.totalWeightGrams,
     };
 
-    const pending = await this.prisma.pendingCheckout.create({
-      data: {
-        snapshot: snapshot as unknown as Prisma.InputJsonObject,
-        ageVerifiedAt: age ? new Date() : null,
-        ageMethod: age?.method ?? null,
-      },
-    });
+    // Reserve the promo redemption now so the limit is enforced before money is taken.
+    if (quote.promoCode) await this.promoService.reserve(quote.promoCode);
 
+    let pendingId: string | null = null;
     try {
+      const pending = await this.prisma.pendingCheckout.create({
+        data: {
+          snapshot: snapshot as unknown as Prisma.InputJsonObject,
+          promoReserved: !!quote.promoCode,
+          ageVerifiedAt: age ? new Date() : null,
+          ageMethod: age?.method ?? null,
+        },
+      });
+      pendingId = pending.id;
+
       const pi = await this.stripe.createPaymentIntent(
         {
           amount: quote.totalPence,
@@ -145,9 +158,12 @@ export class CheckoutService {
         totalPence: quote.totalPence,
       };
     } catch (e) {
-      await this.prisma.pendingCheckout
-        .delete({ where: { id: pending.id } })
-        .catch(() => undefined);
+      if (pendingId) {
+        await this.prisma.pendingCheckout
+          .delete({ where: { id: pendingId } })
+          .catch(() => undefined);
+      }
+      if (quote.promoCode) await this.promoService.release(quote.promoCode);
       this.logger.error(
         `Stripe PaymentIntent creation failed: ${(e as Error).message}`,
       );

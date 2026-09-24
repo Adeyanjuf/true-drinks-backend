@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { OrderStatus } from '@prisma/client';
 import {
+  EMAIL_LOW_STOCK_QUEUE,
   EMAIL_ORDER_RECEIPT_QUEUE,
   EMAIL_ORDER_STATUS_QUEUE,
   EMAIL_OTP_QUEUE,
@@ -51,5 +52,10 @@ export class EmailQueue {
   async sendOrderStatus(orderId: string, status: OrderStatus) {
     await this.pgBoss.ready();
     await this.pgBoss.boss.send(EMAIL_ORDER_STATUS_QUEUE, { orderId, status });
+  }
+
+  async sendLowStockAlert(productIds: string[]) {
+    await this.pgBoss.ready();
+    await this.pgBoss.boss.send(EMAIL_LOW_STOCK_QUEUE, { productIds });
   }
 }

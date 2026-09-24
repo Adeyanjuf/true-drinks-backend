@@ -59,4 +59,37 @@ export class PromoService {
       discountPence: promoDiscountPence(promo, subtotalPence),
     };
   }
+
+  /**
+   * Holds one redemption for a checkout that is about to take payment. The limit check is
+   * atomic (guarded UPDATE), so the last remaining use can only go to one customer; anyone
+   * who arrives after the limit is reached gets no discount and is told so.
+   */
+  async reserve(code: string) {
+    const promo = await this.prisma.promoCode.findUnique({ where: { code } });
+    if (!promo) throw new BadRequestException('Invalid promo code');
+
+    const res = await this.prisma.promoCode.updateMany({
+      where: {
+        id: promo.id,
+        ...(promo.usageLimit !== null && {
+          usedCount: { lt: promo.usageLimit },
+        }),
+      },
+      data: { usedCount: { increment: 1 } },
+    });
+    if (res.count === 0) {
+      throw new BadRequestException(
+        'This promo code has reached its usage limit',
+      );
+    }
+  }
+
+  /** Gives back a reserved redemption when a checkout is abandoned or fails. */
+  async release(code: string) {
+    await this.prisma.promoCode.updateMany({
+      where: { code, usedCount: { gt: 0 } },
+      data: { usedCount: { decrement: 1 } },
+    });
+  }
 }

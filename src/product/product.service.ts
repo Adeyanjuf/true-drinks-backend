@@ -69,6 +69,25 @@ export class ProductService {
     };
   }
 
+  /** Products at or below their own low-stock threshold, emptiest first (admin dashboard). */
+  async findLowStock() {
+    const rows = await this.prisma.$queryRaw<
+      {
+        id: string;
+        name: string;
+        brand: string | null;
+        stock: number;
+        lowStockThreshold: number;
+      }[]
+    >(Prisma.sql`
+      SELECT id, name, brand, stock, "lowStockThreshold"
+      FROM "Product"
+      WHERE stock <= "lowStockThreshold"
+      ORDER BY stock ASC, name ASC
+    `);
+    return rows.map((r) => ({ ...r, outOfStock: r.stock === 0 }));
+  }
+
   async findOne(id: string) {
     const product = await this.prisma.product.findUnique({
       where: { id },

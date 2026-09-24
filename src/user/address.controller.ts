@@ -15,7 +15,7 @@ const addressExample = {
   line2: null,
   city: 'London',
   postcode: 'SW1A 2AA',
-  phone: null,
+  phone: '+44 7700 900123',
 };
 
 // The single saved delivery address for a registered customer; used to prefill checkout.
@@ -53,7 +53,7 @@ export class AddressController {
       line2: dto.line2 ?? null,
       city: dto.city,
       postcode: dto.postcode,
-      phone: dto.phone ?? null,
+      phone: dto.phone,
     };
     const address = await this.prisma.userAddress.upsert({
       where: { userId: user.id },

@@ -22,7 +22,7 @@ export interface CheckoutSnapshot {
     line2?: string;
     city: string;
     postcode: string;
-    phone?: string;
+    phone: string;
   };
   promoCode: string | null;
   items: SnapshotItem[];

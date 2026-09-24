@@ -63,16 +63,17 @@ export class OrdersService {
       this.logger.error(
         `Amount mismatch on ${pi.id}: paid ${pi.amount} ${pi.currency}, expected ${snap.totals.totalPence} gbp. Refunding.`,
       );
-      await this.failAndRefund(pending.id, pi.id);
+      await this.failAndRefund(pending, snap, pi.id);
       return null;
     }
 
     for (let attempt = 0; attempt < 5; attempt++) {
       try {
-        const order = await this.prisma.$transaction((tx) =>
-          this.createOrderTx(tx, pending.id, pi.id, snap, pending),
+        const { order, lowStockProductIds } = await this.prisma.$transaction(
+          (tx) => this.createOrderTx(tx, pending.id, pi.id, snap, pending),
         );
         await this.notifyReceipt(order.id);
+        await this.notifyLowStock(lowStockProductIds);
         this.logger.log(
           `Order ${order.trackingId} created for PaymentIntent ${pi.id}`,
         );
@@ -82,7 +83,7 @@ export class OrdersService {
           this.logger.error(
             `Out of stock while fulfilling ${pi.id}; refunding`,
           );
-          await this.failAndRefund(pending.id, pi.id);
+          await this.failAndRefund(pending, snap, pi.id);
           return null;
         }
         if (e instanceof AlreadyProcessedError) {
@@ -121,20 +122,29 @@ export class OrdersService {
     });
     if (claimed.count === 0) throw new AlreadyProcessedError();
 
+    const lowStockProductIds: string[] = [];
     for (const item of snap.items) {
       const res = await tx.product.updateMany({
         where: { id: item.productId, stock: { gte: item.quantity } },
         data: { stock: { decrement: item.quantity } },
       });
       if (res.count === 0) throw new OutOfStockError();
+
+      // Warn the admin only when this order pushes the product across its threshold.
+      const after = await tx.product.findUnique({
+        where: { id: item.productId },
+        select: { stock: true, lowStockThreshold: true },
+      });
+      if (
+        after &&
+        after.stock <= after.lowStockThreshold &&
+        after.stock + item.quantity > after.lowStockThreshold
+      ) {
+        lowStockProductIds.push(item.productId);
+      }
     }
 
-    if (snap.promoCode) {
-      await tx.promoCode.updateMany({
-        where: { code: snap.promoCode },
-        data: { usedCount: { increment: 1 } },
-      });
-    }
+    // The promo redemption was already reserved when the PaymentIntent was created.
 
     const order = await tx.order.create({
       data: {
@@ -173,13 +183,26 @@ export class OrdersService {
     });
 
     await tx.cartItem.deleteMany({ where: { cartId: snap.cartId } });
-    return order;
+    return { order, lowStockProductIds };
   }
 
-  private async failAndRefund(pendingId: string, paymentIntentId: string) {
-    await this.prisma.pendingCheckout.updateMany({
-      where: { id: pendingId },
-      data: { status: 'FAILED', snapshot: {} },
+  private async failAndRefund(
+    pending: { id: string; promoReserved: boolean },
+    snap: CheckoutSnapshot,
+    paymentIntentId: string,
+  ) {
+    await this.prisma.$transaction(async (tx) => {
+      const res = await tx.pendingCheckout.updateMany({
+        where: { id: pending.id, status: 'CREATED' },
+        data: { status: 'FAILED', snapshot: {} },
+      });
+      // No order will exist, so the reserved promo redemption goes back to the pool.
+      if (res.count > 0 && pending.promoReserved && snap.promoCode) {
+        await tx.promoCode.updateMany({
+          where: { code: snap.promoCode, usedCount: { gt: 0 } },
+          data: { usedCount: { decrement: 1 } },
+        });
+      }
     });
     try {
       await this.stripe.refund(paymentIntentId);
@@ -188,6 +211,73 @@ export class OrdersService {
       this.logger.error(
         `REFUND FAILED for ${paymentIntentId}: ${(e as Error).message}`,
       );
+    }
+  }
+
+  private async notifyLowStock(productIds: string[]) {
+    if (productIds.length === 0) return;
+    try {
+      await this.emailQueue.sendLowStockAlert(productIds);
+    } catch (e) {
+      this.logger.error(
+        `Could not queue low-stock alert: ${(e as Error).message}`,
+      );
+    }
+  }
+
+  /**
+   * Cancels an unpaid checkout: cancels its PaymentIntent, frees the reserved promo
+   * redemption and deletes the snapshot. If the payment actually went through in the
+   * meantime, the order is created instead.
+   */
+  async abandonPending(pending: {
+    id: string;
+    stripePaymentIntentId: string | null;
+    promoReserved: boolean;
+    snapshot: unknown;
+  }) {
+    if (pending.stripePaymentIntentId) {
+      const pi = await this.stripe.retrievePaymentIntent(
+        pending.stripePaymentIntentId,
+      );
+      if (pi.status === 'succeeded') {
+        await this.createFromPaymentIntent(pi);
+        return;
+      }
+      if (pi.status !== 'canceled')
+        await this.stripe.cancelPaymentIntent(pi.id);
+    }
+
+    const snap = pending.snapshot as CheckoutSnapshot;
+    await this.prisma.$transaction(async (tx) => {
+      const del = await tx.pendingCheckout.deleteMany({
+        where: { id: pending.id, status: 'CREATED' },
+      });
+      if (del.count > 0 && pending.promoReserved && snap.promoCode) {
+        await tx.promoCode.updateMany({
+          where: { code: snap.promoCode, usedCount: { gt: 0 } },
+          data: { usedCount: { decrement: 1 } },
+        });
+      }
+    });
+  }
+
+  /** A customer restarting checkout supersedes their earlier unpaid attempts on the same cart. */
+  async abandonStaleForCart(cartId: string) {
+    const stale = await this.prisma.pendingCheckout.findMany({
+      where: {
+        status: 'CREATED',
+        snapshot: { path: ['cartId'], equals: cartId },
+      },
+    });
+    for (const p of stale) {
+      try {
+        await this.abandonPending(p);
+      } catch (e) {
+        this.logger.warn(
+          `Could not abandon earlier checkout ${p.id}: ${(e as Error).message}`,
+        );
+      }
     }
   }
 

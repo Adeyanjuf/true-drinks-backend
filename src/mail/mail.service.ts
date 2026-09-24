@@ -5,6 +5,10 @@ import { otpEmailTemplate } from './templates/otp.template';
 import { PasswordResetTemplate } from './templates/password-reset.template';
 import { OrderStatus } from '@prisma/client';
 import {
+  LowStockProduct,
+  lowStockTemplate,
+} from './templates/low-stock.template';
+import {
   OrderEmailData,
   orderReceiptTemplate,
   orderStatusTemplate,
@@ -74,7 +78,15 @@ export class MailService {
     await this.send(order.email, subject, orderStatusTemplate(order, status));
   }
 
-  private async send(to: string, subject: string, html: string): Promise<void> {
+  async sendLowStock(to: string[], products: LowStockProduct[]): Promise<void> {
+    await this.send(to, 'Low stock warning', lowStockTemplate(products));
+  }
+
+  private async send(
+    to: string | string[],
+    subject: string,
+    html: string,
+  ): Promise<void> {
     try {
       await this.resend.emails.send({ from: this.from, to, subject, html });
     } catch {

@@ -58,12 +58,15 @@ export class AddressDto {
   @Matches(UK_POSTCODE, { message: 'Please enter a valid UK postcode' })
   postcode!: string;
 
-  @ApiPropertyOptional({ example: '+44 7700 900123' })
-  @IsOptional()
+  @ApiProperty({
+    example: '+44 7700 900123',
+    description: 'Contact number for the delivery (required)',
+  })
   @IsString()
+  @IsNotEmpty()
   @Matches(/^\+?[0-9 ()-]{7,20}$/, {
     message: 'Please enter a valid phone number',
   })
   @Transform(trim)
-  phone?: string;
+  phone!: string;
 }

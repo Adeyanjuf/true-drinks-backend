@@ -5,6 +5,8 @@ import { StripeService } from '../stripe/stripe.service';
 import { OrdersService } from './orders.service';
 
 const MINUTE = 60_000;
+// Unpaid checkouts hold promo redemptions, so they are released fairly quickly.
+const ABANDON_AFTER_MINUTES = 120;
 
 /**
  * Safety net for "no payment without an order": if a webhook was lost, a succeeded
@@ -34,7 +36,7 @@ export class OrdersReconcileService {
       try {
         if (!p.stripePaymentIntentId) {
           if (p.createdAt < new Date(Date.now() - 60 * MINUTE)) {
-            await this.prisma.pendingCheckout.delete({ where: { id: p.id } });
+            await this.orders.abandonPending(p);
           }
           continue;
         }
@@ -47,11 +49,12 @@ export class OrdersReconcileService {
             `Recovering order for succeeded PaymentIntent ${pi.id}`,
           );
           await this.orders.createFromPaymentIntent(pi);
-        } else if (pi.status === 'canceled') {
-          await this.prisma.pendingCheckout.delete({ where: { id: p.id } });
-        } else if (p.createdAt < new Date(Date.now() - 24 * 60 * MINUTE)) {
-          await this.stripe.cancelPaymentIntent(pi.id);
-          await this.prisma.pendingCheckout.delete({ where: { id: p.id } });
+        } else if (
+          pi.status === 'canceled' ||
+          p.createdAt < new Date(Date.now() - ABANDON_AFTER_MINUTES * MINUTE)
+        ) {
+          // Also releases the reserved promo redemption.
+          await this.orders.abandonPending(p);
         }
       } catch (e) {
         this.logger.error(

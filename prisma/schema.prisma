@@ -85,6 +85,7 @@ model Product {
   abv             Float? // alcohol by volume, %
   isAgeRestricted Boolean  @default(false)
   stock           Int      @default(0) // in stock when > 0
+  lowStockThreshold Int    @default(5) // admin is warned when stock <= this
   categoryId      String
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -160,6 +161,7 @@ model PendingCheckout {
   snapshot              Json
   stripePaymentIntentId String?               @unique
   status                PendingCheckoutStatus @default(CREATED)
+  promoReserved         Boolean               @default(false) // a promo redemption is held for this checkout
   ageVerifiedAt         DateTime?
   ageMethod             String?
   createdAt             DateTime              @default(now())
@@ -177,7 +179,7 @@ model Order {
   addressLine2          String?
   city                  String
   postcode              String
-  phone                 String?
+  phone                 String
   country               String      @default("GB")
   status                OrderStatus @default(PACKAGING)
   subtotalPence         Int
@@ -240,7 +242,7 @@ model UserAddress {
   line2     String?
   city      String
   postcode  String
-  phone     String?
+  phone     String
   updatedAt DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)

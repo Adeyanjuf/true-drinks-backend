@@ -89,6 +89,16 @@ export class CreateProductDto {
   @Min(0)
   stock?: number;
 
+  @ApiPropertyOptional({
+    default: 5,
+    description: 'The admin is warned when stock falls to or below this number',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  lowStockThreshold?: number;
+
   @ApiProperty()
   @IsString()
   @IsNotEmpty()

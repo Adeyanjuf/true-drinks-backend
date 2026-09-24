@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
 import { OtpEmailJob, PasswordResetEmailJob } from './email.queue';
 import {
+  EMAIL_LOW_STOCK_QUEUE,
   EMAIL_ORDER_RECEIPT_QUEUE,
   EMAIL_ORDER_STATUS_QUEUE,
   EMAIL_OTP_QUEUE,
@@ -70,6 +71,32 @@ export class EmailProcessor implements OnModuleInit {
           await this.mailService.sendOrderStatus(order, job.data.status);
           this.logger.log(
             `Order ${job.data.status} email sent for ${order.trackingId}`,
+          );
+        }
+      },
+    );
+
+    await this.pgBoss.boss.work<{ productIds: string[] }>(
+      EMAIL_LOW_STOCK_QUEUE,
+      async (jobs) => {
+        for (const job of jobs) {
+          const [products, admins] = await Promise.all([
+            this.prisma.product.findMany({
+              where: { id: { in: job.data.productIds } },
+              select: { name: true, stock: true, lowStockThreshold: true },
+            }),
+            this.prisma.user.findMany({
+              where: { role: 'ADMIN', isVerified: true },
+              select: { email: true },
+            }),
+          ]);
+          if (products.length === 0 || admins.length === 0) continue;
+          await this.mailService.sendLowStock(
+            admins.map((a) => a.email),
+            products,
+          );
+          this.logger.log(
+            `Low-stock alert sent for ${products.length} product(s)`,
           );
         }
       },

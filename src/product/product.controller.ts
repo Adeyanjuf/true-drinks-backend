@@ -56,6 +56,29 @@ export class ProductController {
     return ApiResponse.success(await this.productService.findAll(query));
   }
 
+  // Declared before ':id' so "low-stock" isn't treated as a product id.
+  @Get('low-stock')
+  @ApiBearerAuth('access-token')
+  @ApiAdminOnly()
+  @UseGuards(JwtGuard, RolesGuard)
+  @Roles('ADMIN')
+  @ApiOperation({
+    summary:
+      'Products at or below their low-stock threshold (admin). An email alert is also sent when an order pushes a product across its threshold.',
+  })
+  @ApiEnvelope('Low-stock products, emptiest first', [
+    {
+      id: 'cuid',
+      name: 'Jameson 70cl',
+      stock: 2,
+      lowStockThreshold: 5,
+      outOfStock: false,
+    },
+  ])
+  async lowStock() {
+    return ApiResponse.success(await this.productService.findLowStock());
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get product details (public)' })
   async findOne(@Param('id') id: string) {

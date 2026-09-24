@@ -155,6 +155,18 @@ export class AuthService {
     return { message: 'Verification code sent to your email' };
   }
 
+  /**
+   * Attaches earlier guest orders to the account once the email is proven (OTP or Google).
+   * Matches on email only: phone numbers are unverified, so they are stored but never used
+   * to claim an order.
+   */
+  private async linkGuestOrders(userId: string, email: string) {
+    await this.prisma.order.updateMany({
+      where: { userId: null, email: { equals: email, mode: 'insensitive' } },
+      data: { userId },
+    });
+  }
+
   async verifyOtp(dto: VerifyOtpDto): Promise<VerifyOtpResponseDto> {
     const user = await this.prisma.user.findUnique({
       where: { email: dto.email },
@@ -193,6 +205,7 @@ export class AuthService {
         isVerified: true,
       },
     });
+    await this.linkGuestOrders(user.id, user.email);
 
     return new VerifyOtpResponseDto(
       token,
@@ -264,6 +277,7 @@ export class AuthService {
     });
 
     const token = await this.generateJwt(user.id);
+    await this.linkGuestOrders(user.id, user.email);
 
     return new VerifyOtpResponseDto(
       token,

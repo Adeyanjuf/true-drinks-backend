@@ -10,6 +10,7 @@ export const EMAIL_OTP_QUEUE = 'email-otp';
 export const EMAIL_PASSWORD_RESET_QUEUE = 'email-password-reset';
 export const EMAIL_ORDER_RECEIPT_QUEUE = 'email-order-receipt';
 export const EMAIL_ORDER_STATUS_QUEUE = 'email-order-status';
+export const EMAIL_LOW_STOCK_QUEUE = 'email-low-stock';
 
 // Job payloads carry plaintext OTPs / reset tokens, so completed jobs are purged quickly.
 const SHORT_LIVED = {
@@ -48,6 +49,7 @@ export class PgBossService implements OnModuleInit, OnModuleDestroy {
     await this.boss.createQueue(EMAIL_PASSWORD_RESET_QUEUE, SHORT_LIVED);
     await this.boss.createQueue(EMAIL_ORDER_RECEIPT_QUEUE, SHORT_LIVED);
     await this.boss.createQueue(EMAIL_ORDER_STATUS_QUEUE, SHORT_LIVED);
+    await this.boss.createQueue(EMAIL_LOW_STOCK_QUEUE, SHORT_LIVED);
     this.logger.log('pg-boss started');
   }
 
