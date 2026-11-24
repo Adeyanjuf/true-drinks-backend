@@ -227,27 +227,87 @@ export class AuthService {
     };
   }
 
+  private signTicket(
+    payload: Record<string, unknown>,
+    purpose: 'google-login' | 'google-signup',
+    expiresIn: number,
+  ) {
+    return this.jwt.sign({ ...payload, purpose }, { expiresIn });
+  }
+
+  private verifyTicket<T>(ticket: string, purpose: string): T {
+    try {
+      const payload = this.jwt.verify<T & { purpose?: string }>(ticket);
+      if (payload.purpose !== purpose) throw new Error('wrong purpose');
+      return payload;
+    } catch {
+      throw new UnauthorizedException('Invalid or expired code');
+    }
+  }
+
+  /**
+   * Returns the frontend URL to redirect to after Google consent.
+   * No access token ever appears in the URL: only a short-lived signed code
+   * (existing user, 60s) or ticket (new user, 15m).
+   */
   async googleLogin(googleProfile: { email: string; name: string }) {
     const existingUser = await this.prisma.user.findUnique({
       where: { email: googleProfile.email },
     });
 
     if (existingUser) {
-      const token = await this.generateJwt(existingUser.id);
-
-      return `${process.env.FRONTEND_URL}/auth/callback?token=${token.accessToken}`;
+      const code = this.signTicket(
+        { sub: existingUser.id },
+        'google-login',
+        60,
+      );
+      return `${process.env.FRONTEND_URL}/auth/callback?code=${encodeURIComponent(code)}`;
     }
 
-    const encoded = encodeURIComponent(
-      JSON.stringify({ email: googleProfile.email, name: googleProfile.name }),
+    const ticket = this.signTicket(
+      { email: googleProfile.email, name: googleProfile.name },
+      'google-signup',
+      15 * 60,
     );
-    return `${process.env.FRONTEND_URL}/auth/complete-profile?data=${encoded}`;
+    return `${process.env.FRONTEND_URL}/auth/complete-profile?ticket=${encodeURIComponent(ticket)}`;
+  }
+
+  async exchangeGoogleCode(code: string): Promise<VerifyOtpResponseDto> {
+    const { sub } = this.verifyTicket<{ sub: string }>(code, 'google-login');
+
+    const user = await this.prisma.user.findUnique({ where: { id: sub } });
+    if (!user) throw new UnauthorizedException('Invalid or expired code');
+
+    // Google verified the email
+    if (!user.isVerified) {
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: { isVerified: true },
+      });
+    }
+
+    const token = await this.generateJwt(user.id);
+    await this.linkGuestOrders(user.id, user.email);
+
+    return new VerifyOtpResponseDto(
+      token,
+      user.id,
+      user.email,
+      user.name,
+      user.role,
+    );
   }
 
   async completeGoogleProfile(dto: CompleteGoogleProfileDto) {
+    // email and name come from the signed ticket, never from the client
+    const { email, name } = this.verifyTicket<{ email: string; name: string }>(
+      dto.ticket,
+      'google-signup',
+    );
+
     // check email wasn't already registered while they were on the form
     const existingEmail = await this.prisma.user.findUnique({
-      where: { email: dto.email },
+      where: { email: email },
     });
 
     if (existingEmail) {
@@ -268,8 +328,8 @@ export class AuthService {
     // create account — no OTP needed, Google verified the email
     const user = await this.prisma.user.create({
       data: {
-        email: dto.email,
-        name: dto.name,
+        email: email,
+        name: name,
         username: dto.username,
         password: password_hashed,
         isVerified: true,

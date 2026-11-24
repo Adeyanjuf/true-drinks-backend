@@ -17,10 +17,11 @@ import {
   ApiBearerAuth,
   ApiBody,
   ApiCreatedResponse,
-  ApiExcludeEndpoint,
   ApiOkResponse,
   ApiOperation,
+  ApiResponse as ApiSwaggerResponse,
   ApiTags,
+  ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import * as client from '@prisma/client';
 import { AuthGuard } from '@nestjs/passport';
@@ -142,20 +143,58 @@ export class AuthController {
     return await this.authService.changePassword(user.id, dto);
   }
 
-  @ApiExcludeEndpoint()
   @Get('google')
+  @ApiOperation({
+    summary: 'Start "Sign in / Sign up with Google" (browser redirect)',
+    description:
+      'Navigate the browser here with `window.location` (NOT fetch/XHR, and "Try it out" will not work). ' +
+      'Redirects to Google; after consent Google calls `/auth/google/callback`, which redirects to the frontend:\n\n' +
+      '- **Existing account:** `{FRONTEND_URL}/auth/callback?code=...` → `POST /auth/google/exchange` with the code (valid 60s).\n' +
+      '- **New email:** `{FRONTEND_URL}/auth/complete-profile?ticket=...` → `POST /auth/complete-profile` with the ticket, a username and a password (ticket valid 15 min).',
+  })
+  @ApiSwaggerResponse({
+    status: 302,
+    description: 'Redirect to Google consent screen',
+  })
   @UseGuards(AuthGuard('google'))
   googleAuth() {
     // AuthGuard redirects to Google's consent screen
   }
 
-  @ApiExcludeEndpoint()
   @Get('google/callback')
+  @ApiOperation({
+    summary: 'Google OAuth redirect target (not called by the frontend)',
+    description:
+      'Registered as the authorised redirect URI in Google. Redirects to the frontend `/auth/callback?code=` (existing user) or `/auth/complete-profile?ticket=` (new user).',
+  })
+  @ApiSwaggerResponse({ status: 302, description: 'Redirect to the frontend' })
   @UseGuards(AuthGuard('google'))
   async googleCallback(@Req() req, @Res() res: Response) {
     const { email, name } = req.user;
     const redirectUrl = await this.authService.googleLogin({ email, name });
     return res.redirect(redirectUrl);
+  }
+
+  @Post('google/exchange')
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Google sign-in: exchange the `code` from the callback for tokens',
+    description:
+      'Existing accounts only. Send the `code` query param the frontend received on `/auth/callback`. Valid for 60 seconds.',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['code'],
+      properties: { code: { type: 'string' } },
+    },
+  })
+  @ApiOkResponse({ type: VerifyOtpResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Invalid or expired code' })
+  async googleExchange(@Body('code') code: string) {
+    if (!code) throw new BadRequestException('Code is required');
+    return this.authService.exchangeGoogleCode(code);
   }
 
   @Get('check-username')
@@ -170,7 +209,7 @@ export class AuthController {
   @ApiCreatedResponse({ type: VerifyOtpResponseDto })
   @ApiOperation({
     summary:
-      'Google sign-up: choose username and password to create the account',
+      'Google sign-up: send the `ticket` from the redirect plus a username and password to create the account',
   })
   async completeGoogleProfile(@Body() dto: CompleteGoogleProfileDto) {
     return await this.authService.completeGoogleProfile(dto);

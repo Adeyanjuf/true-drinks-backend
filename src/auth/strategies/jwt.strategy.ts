@@ -17,7 +17,11 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-  async validate(payload: { sub: string; email: string }) {
+  async validate(payload: { sub?: string; email: string; purpose?: string }) {
+    // short-lived Google tickets are signed with the same secret; never accept them as access tokens
+    if (payload.purpose || !payload.sub) {
+      throw new UnauthorizedException('Invalid token');
+    }
     const user = await this.prisma.user.findUnique({
       where: { id: payload.sub },
       select: {

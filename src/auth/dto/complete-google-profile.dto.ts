@@ -1,16 +1,14 @@
 import { ApiProperty } from '@nestjs/swagger';
-import {
-  IsEmail,
-  IsString,
-  IsNotEmpty,
-  Matches,
-  MinLength,
-} from 'class-validator';
+import { IsString, IsNotEmpty, Matches, MinLength } from 'class-validator';
 
 export class CompleteGoogleProfileDto {
-  @ApiProperty({ example: 'john@gmail.com' })
-  @IsEmail()
-  email!: string;
+  @ApiProperty({
+    description:
+      'Signed ticket from the `ticket` query param of the /auth/complete-profile redirect (valid 15 min). Email and name are taken from it.',
+  })
+  @IsString()
+  @IsNotEmpty()
+  ticket!: string;
 
   @ApiProperty({ example: 'john_123' })
   @IsString()
@@ -20,11 +18,6 @@ export class CompleteGoogleProfileDto {
       'Username must be 3-20 characters, letters, numbers and underscores only',
   })
   username!: string;
-
-  @ApiProperty({ example: 'John Doe' })
-  @IsString()
-  @IsNotEmpty()
-  name!: string;
 
   @ApiProperty({ minLength: 8 })
   @IsString()

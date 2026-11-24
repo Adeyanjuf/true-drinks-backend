@@ -10,6 +10,7 @@ Source: Requirements Document dated 2026-09-18. Legend: `[x]` done, `[~]` exists
 - [x] Decide on `User.jwt_token` (dropped; migration applied)
 - [x] Add password min length + username regex to `CreateUserDto`
 - [x] Add a `checkUsernameAvailability` route (service + DTO exist, no route)
+- [x] Google flow documented in Swagger; no token in redirect URLs. Contract: `GET /auth/google` (browser nav) → `{FRONTEND_URL}/auth/callback?code=` → `POST /auth/google/exchange {code}` (60s), or `/auth/complete-profile?ticket=` → `POST /auth/complete-profile {ticket, username, password}` (15 min, email/name come from the signed ticket)
 
 ## 1. Foundation
 - [x] Swagger docs up to date for auth, categories, products (tags, bearer auth, DTO props, response envelope, error codes). **Rule: every new endpoint gets `@ApiTags`, `@ApiOperation`, `@ApiBearerAuth('access-token')` if guarded, `@ApiProperty` on DTOs, and response docs via `src/common/response/api-response.doc.ts`.**
